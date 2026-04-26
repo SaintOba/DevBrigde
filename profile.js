@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadRecommendedOpportunities();
     loadAppliedOpportunities();
     loadWorkFilesAndSubmissions();
+    loadJourneyProgress();
     
     // Edit profile button
     document.getElementById('edit-profile-btn')?.addEventListener('click', openEditProfileModal);
@@ -15,6 +16,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Modal close
     document.querySelector('.close-modal')?.addEventListener('click', closeEditModal);
+    
+    // Work submission form - ATTACH ONCE HERE
+    const workSubmissionForm = document.getElementById('work-submission-form');
+    if (workSubmissionForm) {
+        workSubmissionForm.addEventListener('submit', submitWork);
+    }
 });
 
 function loadProfileData() {
@@ -396,9 +403,6 @@ function loadSubmissionForm(acceptedApps) {
     fileInput.addEventListener('change', (e) => {
         handleSubmissionFiles(Array.from(e.target.files));
     });
-    
-    // Form submission
-    document.getElementById('work-submission-form').addEventListener('submit', submitWork);
 }
 
 function handleSubmissionFiles(files) {
@@ -574,4 +578,39 @@ function downloadSubmittedFile(submissionId, fileId) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+// ─── JOURNEY PROGRESS TRACKING ───
+
+function loadJourneyProgress() {
+    // Get all necessary data
+    const applications = JSON.parse(localStorage.getItem('applications')) || [];
+    const submissions = JSON.parse(localStorage.getItem('user_submissions')) || [];
+    
+    // Count applied opportunities
+    const appliedCount = applications.length;
+    
+    // Count in-progress (accepted but not reviewed)
+    const inProgressCount = applications.filter(app => 
+        app.status === 'accepted' || app.status === 'approved'
+    ).length;
+    
+    // Count completed (submissions that are reviewed)
+    const completedCount = submissions.filter(sub => sub.status === 'reviewed').length;
+    
+    // Update the UI
+    document.getElementById('journey-applied').textContent = appliedCount;
+    document.getElementById('journey-in-progress').textContent = inProgressCount;
+    document.getElementById('journey-completed').textContent = completedCount;
+    
+    // Update progress path indicators
+    if (appliedCount > 0) {
+        document.getElementById('path-applied').style.background = 'linear-gradient(to right, var(--accent), var(--accent))';
+    }
+    if (inProgressCount > 0) {
+        document.getElementById('path-progress').style.background = 'linear-gradient(to right, var(--accent), var(--accent))';
+    }
+    if (completedCount > 0) {
+        document.getElementById('path-completed').style.background = 'linear-gradient(to right, var(--accent), var(--accent))';
+    }
 }

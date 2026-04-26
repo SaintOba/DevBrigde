@@ -4065,6 +4065,106 @@ body:has(#application-notification-bar) header {
     color: #991b1b;
 }
 
+
+/* Responsive Opportunities Design */
+@media (max-width: 1024px) {
+    .opportunities-main .container {
+        grid-template-columns: 1fr;
+    }
+ 
+    .filters-panel {
+        position: static;
+        margin-bottom: 2rem;
+    }
+}
+ 
+@media (max-width: 768px) {
+    .opportunities-hero h1 {
+        font-size: 2.2rem;
+    }
+ 
+    .hero-stats {
+        flex-direction: column;
+        align-items: stretch;
+    }
+ 
+    .results-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+ 
+    .view-toggle {
+        width: 100%;
+    }
+ 
+    .toggle-btn {
+        flex: 1;
+    }
+ 
+    .opportunities-grid {
+        grid-template-columns: 1fr;
+    }
+ 
+    .results-info {
+        flex-direction: column;
+    }
+}
+ 
+/* Footer */
+footer {
+    background: var(--text-dark);
+    color: white;
+    margin-top: 4rem;
+}
+ 
+.footer-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    padding: 3rem 0;
+}
+ 
+.footer-section h3 {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+}
+ 
+.footer-section h4 {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+}
+ 
+.footer-section p {
+    opacity: 0.8;
+    line-height: 1.8;
+}
+ 
+.footer-section ul {
+    list-style: none;
+}
+ 
+.footer-section ul li {
+    margin-bottom: 0.5rem;
+}
+ 
+.footer-section ul li a {
+    color: white;
+    text-decoration: none;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+}
+ 
+.footer-section ul li a:hover {
+    opacity: 1;
+}
+ 
+.footer-bottom {
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding: 1.5rem 0;
+    text-align: center;
+    opacity: 0.8;
+}
+ 
 /* Responsive Design */
 @media (max-width: 1024px) {
     .profile-grid {
@@ -4075,24 +4175,24 @@ body:has(#application-notification-bar) header {
         grid-template-columns: 1fr;
     }
 }
-
+ 
 @media (max-width: 768px) {
     .hero-content {
         grid-template-columns: 1fr;
     }
-
+ 
     .hero-text {
         text-align: center;
     }
-
+ 
     .hero-buttons {
         justify-content: center;
     }
-
+ 
     .hero h1 {
         font-size: 2.5rem;
     }
-
+ 
     .hero p {
         font-size: 1.1rem;
     }
@@ -4100,12 +4200,12 @@ body:has(#application-notification-bar) header {
     .page-header h1 {
         font-size: 2rem;
     }
-
+ 
     nav {
         flex-wrap: wrap;
         justify-content: center;
     }
-
+ 
     .nav-links {
         gap: 1rem;
         flex-wrap: wrap;
@@ -4116,7 +4216,7 @@ body:has(#application-notification-bar) header {
         width: 100%;
         justify-content: center;
     }
-
+ 
     .section {
         padding: 3rem 1.5rem;
     }
@@ -4147,7 +4247,7 @@ body:has(#application-notification-bar) header {
         align-items: stretch;
     }
 }
-
+ 
 @media (max-width: 480px) {
     .logo {
         font-size: 1.2rem;
@@ -4166,3 +4266,298 @@ body:has(#application-notification-bar) header {
         padding: 1.5rem;
     }
 }
+ 
+/* ============================================================
+   DEVBRIDGE — MOBILE LAYOUT FIXES ONLY (≤ 768px)
+   No design changes — only fixing broken layouts
+   ============================================================ */
+ 
+@media (max-width: 768px) {
+ 
+  /* ── NAV: prevent overflow, hide links ── */
+  nav {
+    flex-wrap: nowrap;
+    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+    overflow: hidden;
+  }
+ 
+  .nav-links {
+    display: none;
+  }
+ 
+  .user-section {
+    margin-left: auto;
+    width: auto;
+    justify-content: flex-end;
+  }
+ 
+  /* ── HERO: fix grid + image overflow ── */
+  .hero-content {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+ 
+  .hero-visual {
+    display: none;
+  }
+ 
+  .hero-text {
+    text-align: center;
+  }
+ 
+  .hero-buttons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+ 
+  /* ── HERO STATS: fix stretching ── */
+  .hero-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    flex-direction: unset;
+    align-items: unset;
+  }
+ 
+  .hero-stat {
+    flex-direction: column;
+    text-align: center;
+    align-items: center;
+    gap: 0.25rem;
+  }
+ 
+  /* ── OPPORTUNITY FOOTER: stack buttons ── */
+  .opportunity-footer {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+ 
+  .opportunity-footer .btn-apply,
+  .opportunity-footer .btn-view-details,
+  .opportunity-footer .opportunity-btn {
+    width: 100%;
+  }
+ 
+  /* ── PROFILE HERO: center layout ── */
+  .profile-header-content {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1rem;
+  }
+ 
+  .profile-actions {
+    justify-content: center;
+    flex-direction: column;
+  }
+ 
+  .profile-actions .cta-button {
+    width: 100%;
+    text-align: center;
+  }
+ 
+  /* ── PROFILE STATS: 2-col grid ── */
+  .stats-grid-profile {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+ 
+  .stat-card-profile {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+ 
+  /* ── PROFILE CONTENT ── */
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+ 
+  .section-header-profile {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+ 
+  .opportunities-cards-grid {
+    grid-template-columns: 1fr;
+  }
+ 
+  /* ── FORMS: full width on mobile ── */
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+ 
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    box-sizing: border-box;
+  }
+ 
+  /* ── CTA ACTIONS ── */
+  .cta-actions,
+  .cta-buttons,
+  .profile-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+ 
+  .cta-actions .cta-button,
+  .cta-buttons .cta-button {
+    width: 100%;
+    text-align: center;
+  }
+ 
+  /* ── FOOTER: 2 columns then wrap ── */
+  .footer-content {
+    grid-template-columns: 1fr 1fr;
+    padding: 2rem 1rem;
+  }
+ 
+  .footer-section:first-child {
+    grid-column: 1 / -1;
+  }
+ 
+  /* ── MODAL: fit screen ── */
+  .modal-content {
+    width: calc(100% - 2rem);
+    margin: 1rem;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+ 
+  /* ── CONTACT GRID ── */
+  .contact-grid {
+    grid-template-columns: 1fr;
+  }
+ 
+  /* ── ABOUT MISSION ── */
+  .mission-visual {
+    display: none;
+  }
+ 
+  /* ── NOTIFICATION BAR ── */
+  .notification-content {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+    padding: 0 1rem;
+  }
+ 
+  /* ── PREVENT HORIZONTAL SCROLL ── */
+  .home-hero,
+  .about-hero,
+  .skills-hero,
+  .contact-hero,
+  .opportunities-hero,
+  .profile-hero {
+    overflow-x: hidden;
+  }
+ 
+  .hero-background,
+  .about-hero-accent,
+  .skills-hero-accent,
+  .contact-hero::before {
+    overflow: hidden;
+  }
+ 
+  /* ── GENERAL PADDING FIX ── */
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+ 
+  .page-header {
+    padding: 2.5rem 1rem;
+  }
+ 
+}
+ 
+@media (max-width: 480px) {
+  .stats-grid-profile {
+    grid-template-columns: 1fr;
+  }
+ 
+  .footer-content {
+    grid-template-columns: 1fr;
+  }
+ 
+  .hero-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+ 
+ 
+/* ── 2-COLUMN GRID FIXES ── */
+@media (max-width: 768px) {
+ 
+  /* Stats cards — home page */
+  .stats-showcase .stats-grid,
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+ 
+  /* Stats highlight — about page */
+  .stats-highlight .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+ 
+  /* Skill cards */
+  .skills-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+ 
+  /* Opportunity cards */
+  .opportunities-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+ 
+  /* Benefit cards */
+  .benefits-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+ 
+  /* Value cards — about page */
+  .values-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+ 
+  /* Testimonials */
+  .testimonials-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+ 
+  /* Contact methods */
+  .contact-methods-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+ 
+  /* Profile stats already 2-col — keep */
+  .stats-grid-profile {
+    grid-template-columns: 1fr 1fr;
+  }
+ 
+}
+ 
+@media (max-width: 400px) {
+  /* Very small screens — collapse to 1 col */
+  .skills-grid,
+  .opportunities-grid,
+  .benefits-grid,
+  .values-grid,
+  .testimonials-grid,
+  .contact-methods-grid {
+    grid-template-columns: 1fr;
+  }
+}
+ 
