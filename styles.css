@@ -264,8 +264,9 @@ nav {
 
 /* Enhanced Stats Section */
 .stats-showcase {
-    padding: 4rem 2rem;
+    padding: 5rem 2rem;
     background: linear-gradient(180deg, white 0%, var(--bg-light) 100%);
+    margin: -3rem;
 }
 
 .stats-showcase .stats-grid {
@@ -450,6 +451,7 @@ nav {
 .testimonials {
     background: white;
     padding: 6rem 2rem;
+    margin: -2rem;
 }
 
 .testimonials-grid {
@@ -1555,7 +1557,7 @@ nav {
 
 .value-card {
     background: white;
-    padding: 2.5rem 2rem;
+    padding: 1rem;
     border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.08);
     transition: all 0.3s ease;
@@ -1684,7 +1686,7 @@ nav {
     background: rgba(255,255,255,0.15);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255,255,255,0.2);
-    padding: 2rem;
+    padding: 0.7rem;
     border-radius: 12px;
     text-align: center;
     box-shadow: none;
@@ -2010,7 +2012,7 @@ nav {
 .skill-card {
     background: white;
     border-radius: 12px;
-    padding: 2rem;
+    padding: 1rem;
     box-shadow: 0 4px 15px rgba(0,0,0,0.08);
     transition: all 0.3s ease;
     border-left: 4px solid var(--primary-color);
@@ -3991,7 +3993,7 @@ body:has(#application-notification-bar) header {
 }
 
 .notification-text strong {
-    font-weight: 700;
+    font-weight: 200;
 }
 
 .notification-link {

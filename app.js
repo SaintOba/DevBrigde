@@ -186,7 +186,7 @@ function displayApplicationNotifications(acceptedApps) {
         notificationBar.innerHTML = `
             <div class="notification-content">
                 <span class="notification-icon">🎉</span>
-                <span class="notification-text"><strong>Congratulations!</strong> Your application for "<strong>${app.jobTitle}</strong>" has been accepted by the admin!</span>
+                <span class="notification-text"><strong>Congratulations!</strong> Your application for "<strong>${app.jobTitle}</strong>" <br>has been accepted by the admin!</span>
                 <button class="notification-close" onclick="closeApplicationNotification()">&times;</button>
             </div>
         `;
