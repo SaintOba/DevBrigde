@@ -1,4 +1,6 @@
 // Profile Page JavaScript
+const SUPABASE_URL = 'https://fsuhpjlyzojioezdjjld.supabase.co';
+const STORAGE_BUCKET = 'opportunity_files';
 
 document.addEventListener('DOMContentLoaded', async function() {
     if (window.AppReady) {
@@ -335,19 +337,19 @@ async function loadWorkFilesAndSubmissions() {
     
     if (workFilesSection) workFilesSection.style.display = 'block';
     
-    loadDownloadableFiles(acceptedApps);
+    await loadDownloadableFiles(acceptedApps);
     loadSubmissionForm(acceptedApps);
     loadSubmissionHistory();
 }
-
-function loadDownloadableFiles(acceptedApps) {
+async function loadDownloadableFiles(acceptedApps) {
     const filesList = document.getElementById('downloadable-files-list');
     const oppsFiles = JSON.parse(localStorage.getItem('opportunity_files')) || {};
     
     let files = [];
     
-    acceptedApps.forEach(app => {
+    for (const app of acceptedApps) {
         const jobId = app.job_id;  // Supabase uses job_id (UUID)
+        // Local files (admin may have uploaded via this admin UI)
         if (oppsFiles[jobId]) {
             oppsFiles[jobId].forEach(file => {
                 files.push({
@@ -357,8 +359,41 @@ function loadDownloadableFiles(acceptedApps) {
                 });
             });
         }
-    });
-    
+
+        // Also fetch admin-uploaded files stored in Supabase `submissions`
+        try {
+            const res = await fetch(`https://fsuhpjlyzojioezdjjld.supabase.co/rest/v1/submissions?job_id=eq.${encodeURIComponent(jobId)}&status=eq.published`, {
+                headers: {
+                    'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzdWhwamx5em9qaW9lemRqamxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjIxNDksImV4cCI6MjA5Mjc5ODE0OX0.IkNVBJrpPKCuW9cKfuRNMWCa2mqjuerYWNUhuDdunlM',
+                    'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzdWhwamx5em9qaW9lemRqamxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjIxNDksImV4cCI6MjA5Mjc5ODE0OX0.IkNVBJrpPKCuW9cKfuRNMWCa2mqjuerYWNUhuDdunlM'
+                }
+            });
+            if (res.ok) {
+                const subs = await res.json();
+                subs.forEach(s => {
+                    (s.files || []).forEach(f => {
+                            const fileId = f.id || ('s_' + (Date.now()) + '_' + Math.random().toString(36).slice(2,6));
+                            const fileName = f.name || f.fileName || 'file';
+                            const storagePath = f.storage_path || null;
+                            const fileUrl = f.url || (storagePath ? `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${encodeURIComponent(storagePath)}` : (f.data || ''));
+
+                            files.push({
+                                id: fileId,
+                                name: fileName,
+                                size: f.size || 0,
+                                type: f.type || f.mime || '',
+                                data: fileUrl,
+                                jobTitle: s.job_title || app.job_title,
+                                jobId: jobId
+                            });
+                        });
+                });
+            }
+        } catch (err) {
+            console.warn('Could not fetch submissions for job', jobId, err);
+        }
+    }
+
     if (files.length === 0) {
         filesList.innerHTML = `
             <div class="empty-state-profile" style="text-align: center; padding: 20px;">
@@ -386,22 +421,56 @@ function loadDownloadableFiles(acceptedApps) {
     `).join('');
 }
 
-function downloadWorkFile(fileId, jobId) {
+async function downloadWorkFile(fileId, jobId) {
     const oppsFiles = JSON.parse(localStorage.getItem('opportunity_files')) || {};
-    const file = oppsFiles[jobId]?.find(f => f.id === fileId);
-    
+    let file = oppsFiles[jobId]?.find(f => f.id === fileId);
+
+    if (!file) {
+        // Try to fetch from Supabase submissions
+        try {
+            const res = await fetch(`https://fsuhpjlyzojioezdjjld.supabase.co/rest/v1/submissions?job_id=eq.${encodeURIComponent(jobId)}&status=eq.published`, {
+                headers: {
+                    'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzdWhwamx5em9qaW9lemRqamxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjIxNDksImV4cCI6MjA5Mjc5ODE0OX0.IkNVBJrpPKCuW9cKfuRNMWCa2mqjuerYWNUhuDdunlM',
+                    'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzdWhwamx5em9qaW9lemRqamxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjIxNDksImV4cCI6MjA5Mjc5ODE0OX0.IkNVBJrpPKCuW9cKfuRNMWCa2mqjuerYWNUhuDdunlM'
+                }
+            });
+            if (res.ok) {
+                const subs = await res.json();
+                for (const s of subs) {
+                    for (const f of (s.files || [])) {
+                        if ((f.id && f.id === fileId) || (f.name && f.name === fileId)) {
+                            const storagePath = f.storage_path || null;
+                            const fileUrl = f.url || (storagePath ? `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${encodeURIComponent(storagePath)}` : (f.data || ''));
+                            file = {
+                                id: f.id || fileId,
+                                name: f.name || f.fileName || 'file',
+                                size: f.size || 0,
+                                type: f.type || f.mime || '',
+                                data: fileUrl
+                            };
+                            break;
+                        }
+                    }
+                    if (file) break;
+                }
+            }
+        } catch (err) {
+            console.warn('Error fetching submission files:', err);
+        }
+    }
+
     if (!file) {
         alert('File not found');
         return;
     }
-    
+
     const link = document.createElement('a');
-    link.href = file.data;
-    link.download = file.name;
+    link.href = file.data || file.url || '';
+    link.download = file.name || 'download';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     Utils.showNotification(`Downloaded: ${file.name}`);
 }
 
