@@ -1454,76 +1454,16 @@ function uploadFiles() {
       if (!oppsFiles[jobId]) oppsFiles[jobId] = [];
       oppsFiles[jobId].push(fileData);
       setData('opportunity_files', oppsFiles);
-
-      // Attempt to upload the raw file to Supabase Storage. If it fails, fall back to data URL stored locally.
-      (async () => {
-        const bucket = 'opportunity_files';
-        const safeName = file.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-.]/g, '');
-        const storagePath = `opportunities/${jobId}/${fileData.id}_${safeName}`;
-        let uploadedToStorage = false;
-        try {
-          const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${encodeURIComponent(storagePath)}`, {
-            method: 'PUT',
-            headers: {
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-              'apikey': SUPABASE_ANON_KEY,
-              'Content-Type': file.type
-            },
-            body: file
-          });
-
-          if (uploadRes.ok) {
-            // Public URL to access the stored object
-            const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${encodeURIComponent(storagePath)}`;
-            fileData.data = publicUrl;
-            fileData.storage_path = storagePath;
-            uploadedToStorage = true;
-          } else {
-            console.warn('Storage upload failed, falling back to data URL', uploadRes.status, await uploadRes.text());
-          }
-        } catch (err) {
-          console.warn('Error uploading to Supabase Storage, will fallback to data URL:', err);
-        }
-
-        // Persist metadata to Supabase submissions table (store storage path or data URL)
-        try {
-          const job = (supabaseJobs && supabaseJobs.length) ? supabaseJobs.find(j => j.id === jobId) : (getData('jobs') || []).find(j => j.id === jobId);
-          const jobTitle = job?.title || '';
-          const adminName = sessionStorage.getItem('adminName') || 'admin';
-          const fileMeta = {
-            id: fileData.id,
-            name: fileData.name,
-            size: fileData.size,
-            type: fileData.type,
-            url: fileData.data,
-            storage_path: fileData.storage_path || null,
-            uploadedAt: fileData.uploadedAt
-          };
-
-          await supabaseAdmin.request('POST', '/submissions', {
-            job_id: jobId,
-            job_title: jobTitle,
-            user_name: adminName,
-            user_email: null,
-            notes: uploadedToStorage ? 'admin_upload_storage' : 'admin_upload_inline',
-            files: [fileMeta],
-            status: 'published'
-          });
-          console.log('✓ Saved admin-uploaded file metadata to Supabase');
-        } catch (err) {
-          console.warn('Could not save admin file metadata to Supabase:', err);
-        }
-
-        uploaded++;
-        if (uploaded === selectedFilesForUpload.length) {
-          selectedFilesForUpload = [];
-          document.getElementById('file-input').value = '';
-          document.getElementById('file-list-preview').innerHTML = '';
-          renderAll();
-          renderJobFiles();
-          toast(`✓ ${uploaded} file(s) uploaded`);
-        }
-      })();
+      
+      uploaded++;
+      if (uploaded === selectedFilesForUpload.length) {
+        selectedFilesForUpload = [];
+        document.getElementById('file-input').value = '';
+        document.getElementById('file-list-preview').innerHTML = '';
+        renderAll();
+        renderJobFiles();
+        toast(`✓ ${uploaded} file(s) uploaded`);
+      }
     };
     reader.readAsDataURL(file);
   });
