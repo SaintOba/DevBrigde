@@ -15,45 +15,59 @@ const AppData = {
     appliedOpportunities: []
 };
 
-// LocalStorage functions
+// Expose a promise that other pages can await until AppData finishes loading
+window.AppReady = new Promise(resolve => {
+    window.__resolveAppReady = resolve;
+});
+
+// Storage functions - uses Supabase for opportunities
 const Storage = {
     save: function() {
-        localStorage.setItem('devbridge_data', JSON.stringify(AppData));
+        // Save user data to localStorage only (opportunities come from Supabase)
+        const toSave = {
+            user: AppData.user,
+            skills: AppData.skills,
+            appliedOpportunities: AppData.appliedOpportunities
+        };
+        localStorage.setItem('devbridge_data', JSON.stringify(toSave));
     },
     
-    load: function() {
+    async load() {
         const data = localStorage.getItem('devbridge_data');
         if (data) {
             const parsed = JSON.parse(data);
-            // Never restore stale opportunities from cache — always rebuild from admin jobs
-            delete parsed.opportunities;
             Object.assign(AppData, parsed);
         }
-        // Always load fresh jobs from the admin dashboard
-        this.loadAdminJobs();
+        // Load opportunities from Supabase
+        await this.loadFromSupabase();
         this.calculateMatches();
     },
 
-    loadAdminJobs: function() {
+    async loadFromSupabase() {
         AppData.opportunities = [];
         try {
-            const adminJobs = JSON.parse(localStorage.getItem('jobs')) || [];
-            adminJobs.forEach(job => {
+            const jobs = await supabase.getJobs();
+            if (!Array.isArray(jobs)) {
+                console.warn('Invalid jobs data from Supabase');
+                return;
+            }
+            
+            jobs.forEach(job => {
                 const categoryMap = {
                     'Frontend': 'Programming', 'Backend': 'Programming',
                     'Fullstack': 'Programming', 'Mobile': 'Programming',
                     'DevOps': 'Programming', 'UI/UX Design': 'Design'
                 };
                 AppData.opportunities.push({
-                    id: 'admin_' + job.id,
-                    _adminId: job.id,
+                    id: 'job_' + job.id,
+                    _dbId: job.id,
                     title: job.title,
                     company: 'DevBridge',
                     type: job.type || 'Project',
                     location: 'Remote',
                     requiredSkills: job.skills || [],
                     category: categoryMap[job.type] || 'Programming',
-                    description: job.desc,
+                    description: job.description,
                     duration: job.duration || 'Flexible',
                     difficulty: job.difficulty || 'Medium',
                     slots: job.slots || null,
@@ -62,8 +76,27 @@ const Storage = {
                     isAdminJob: true
                 });
             });
+            console.log(`✓ Loaded ${AppData.opportunities.length} jobs from Supabase`);
         } catch (e) {
-            console.warn('Could not load admin jobs:', e);
+            console.warn('Could not load jobs from Supabase:', e);
+        }
+    },
+
+    // Setup polling for job updates (real-time simulation)
+    setupRealtimeSync() {
+        if (!window.supabaseRealtimeSetup) {
+            window.supabaseRealtimeSetup = true;
+            console.log('📡 Starting job polling every 3 seconds...');
+            supabase.startPollingJobs(async (jobs) => {
+                console.log('✨ New jobs detected! Updating...');
+                await this.loadFromSupabase();
+                this.calculateMatches();
+                // Trigger UI update if opportunities page is visible
+                if (typeof displayOpportunities === 'function') {
+                    displayOpportunities();
+                    updateOpportunitiesCount();
+                }
+            }, 3000); // Poll every 3 seconds
         }
     },
     
@@ -73,6 +106,10 @@ const Storage = {
         
         AppData.opportunities.forEach(opp => {
             const requiredSkills = opp.requiredSkills.map(s => s.toLowerCase());
+            if (requiredSkills.length === 0) {
+                opp.matchScore = 0;
+                return;
+            }
             const matchingSkills = userSkills.filter(skill => 
                 requiredSkills.some(req => req.includes(skill) || skill.includes(req))
             );
@@ -242,9 +279,14 @@ window.viewAllApplications = function() {
 };
 
 // Initialize app on page load
-document.addEventListener('DOMContentLoaded', function() {
-    Storage.load();
+document.addEventListener('DOMContentLoaded', async function() {
+    await Storage.load();
+    Storage.setupRealtimeSync();
     updateUserDisplay();
+    
+    if (typeof window.__resolveAppReady === 'function') {
+        window.__resolveAppReady();
+    }
     
     // Check for accepted applications and show notifications
     setTimeout(() => {

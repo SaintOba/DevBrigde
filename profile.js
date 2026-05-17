@@ -1,11 +1,15 @@
 // Profile Page JavaScript
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    if (window.AppReady) {
+        await window.AppReady;
+    }
+    
+    await loadAppliedOpportunities();
     loadProfileData();
     loadProfileSkills();
     loadRecommendedOpportunities();
-    loadAppliedOpportunities();
-    loadWorkFilesAndSubmissions();
+    await loadWorkFilesAndSubmissions();
     loadJourneyProgress();
     
     // Edit profile button
@@ -130,40 +134,56 @@ function loadRecommendedOpportunities() {
     `).join('');
 }
 
-function loadAppliedOpportunities() {
+async function loadAppliedOpportunities() {
     const container = document.getElementById('applied-opportunities');
     
-    console.log('Applied Opportunities IDs:', AppData.appliedOpportunities);
-    console.log('Total Opportunities:', AppData.opportunities.length);
-    
-    if (!AppData.appliedOpportunities || AppData.appliedOpportunities.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state-profile">
-                <div class="empty-icon">📭</div>
-                <h3>No applications yet</h3>
-                <p>Find and apply to opportunities that match your skills</p>
-                <a href="opportunities.html" class="cta-button primary">Find Opportunities</a>
-            </div>
-        `;
-        document.getElementById('applied-count').textContent = '(0)';
-        return;
-    }
-    
-    // Get application statuses from localStorage
-    const applications = JSON.parse(localStorage.getItem('applications')) || [];
-    const appStatusMap = {};
-    applications.forEach(app => {
-        appStatusMap[app.jobTitle] = app.status;
-    });
-    
-    // Find all applied opportunities
-    const applied = AppData.opportunities.filter(opp => {
-        const isApplied = AppData.appliedOpportunities.includes(opp.id) || 
-                         localStorage.getItem('applied_' + opp.id) === 'true';
-        return isApplied;
-    });
+    try {
+        // Fetch applications from Supabase for current user
+        const userEmail = AppData.user.email;
+        const response = await fetch(`https://fsuhpjlyzojioezdjjld.supabase.co/rest/v1/applications?email=eq.${encodeURIComponent(userEmail)}&order=created_at.desc`, {
+            headers: {
+                'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzdWhwamx5em9qaW9lemRqamxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjIxNDksImV4cCI6MjA5Mjc5ODE0OX0.IkNVBJrpPKCuW9cKfuRNMWCa2mqjuerYWNUhuDdunlM',
+                'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzdWhwamx5em9qaW9lemRqamxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjIxNDksImV4cCI6MjA5Mjc5ODE0OX0.IkNVBJrpPKCuW9cKfuRNMWCa2mqjuerYWNUhuDdunlM'
+            }
+        });
+        
+        const applications = response.ok ? await response.json() : [];
+        console.log('📝 Loaded applications for', userEmail, ':', applications);
+        
+        if (!applications || applications.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state-profile">
+                    <div class="empty-icon">📭</div>
+                    <h3>No applications yet</h3>
+                    <p>Find and apply to opportunities that match your skills</p>
+                    <a href="opportunities.html" class="cta-button primary">Find Opportunities</a>
+                </div>
+            `;
+            document.getElementById('applied-count').textContent = '(0)';
+            return;
+        }
+        
+        // Map applications by job_id and job title so we can match Supabase apps to loaded opportunities
+        const appByJobId = {};
+        const appByTitle = {};
+        applications.forEach(app => {
+            if (app.job_id) appByJobId[app.job_id] = app;
+            if (app.job_title) appByTitle[app.job_title] = app;
+        });
+        
+        // Find all applied opportunities based on Supabase job references
+        const applied = AppData.opportunities.filter(opp => {
+            return Boolean(appByJobId[opp._dbId] || appByTitle[opp.title]);
+        });
     
     console.log('Found applied opportunities:', applied);
+
+    // Update applied stats from Supabase results
+    const appliedCount = applications.length;
+    const statOppsEl = document.getElementById('stat-opportunities');
+    if (statOppsEl) statOppsEl.textContent = appliedCount;
+    const journeyAppliedEl = document.getElementById('journey-applied');
+    if (journeyAppliedEl) journeyAppliedEl.textContent = appliedCount;
     
     if (applied.length === 0) {
         container.innerHTML = `
@@ -181,7 +201,8 @@ function loadAppliedOpportunities() {
     document.getElementById('applied-count').textContent = '(' + applied.length + ')';
     
     container.innerHTML = applied.map(opp => {
-        const status = appStatusMap[opp.title] || 'pending';
+        const app = appByJobId[opp._dbId] || appByTitle[opp.title] || { status: 'pending' };
+        const status = app.status || 'pending';
         const statusIcon = status === 'accepted' || status === 'approved' ? '✓' : 
                           status === 'rejected' ? '✗' : '⏳';
         const statusLabel = status === 'accepted' || status === 'approved' ? 'Accepted' :
@@ -231,6 +252,17 @@ function loadAppliedOpportunities() {
             </div>
         </div>
     `}).join('');
+  } catch (error) {
+      console.error('Error loading applied opportunities:', error);
+      container.innerHTML = `
+          <div class="empty-state-profile">
+              <div class="empty-icon">⚠</div>
+              <h3>Could not load applications</h3>
+              <p>Please refresh the page or try again later.</p>
+          </div>
+      `;
+      document.getElementById('applied-count').textContent = '(0)';
+  }
 }
 
 function openEditProfileModal() {
@@ -273,9 +305,25 @@ function handleEditProfile(e) {
 
 // ─── FILE DOWNLOADS & SUBMISSIONS ───
 
-function loadWorkFilesAndSubmissions() {
-    // Only show section if there are accepted opportunities
-    const applications = JSON.parse(localStorage.getItem('applications')) || [];
+async function fetchUserApplications() {
+    try {
+        const userEmail = AppData.user.email;
+        const response = await fetch(`https://fsuhpjlyzojioezdjjld.supabase.co/rest/v1/applications?email=eq.${encodeURIComponent(userEmail)}&order=created_at.desc`, {
+            headers: {
+                'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzdWhwamx5em9qaW9lemRqamxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjIxNDksImV4cCI6MjA5Mjc5ODE0OX0.IkNVBJrpPKCuW9cKfuRNMWCa2mqjuerYWNUhuDdunlM',
+                'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzdWhwamx5em9qaW9lemRqamxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjIxNDksImV4cCI6MjA5Mjc5ODE0OX0.IkNVBJrpPKCuW9cKfuRNMWCa2mqjuerYWNUhuDdunlM'
+            }
+        });
+        return response.ok ? await response.json() : [];
+    } catch (error) {
+        console.error('Error fetching user applications:', error);
+        return [];
+    }
+}
+
+async function loadWorkFilesAndSubmissions() {
+    // Only show section if there are accepted opportunities in Supabase
+    const applications = await fetchUserApplications();
     const acceptedApps = applications.filter(app => app.status === 'accepted' || app.status === 'approved');
     
     const workFilesSection = document.getElementById('work-files-section');
@@ -299,12 +347,12 @@ function loadDownloadableFiles(acceptedApps) {
     let files = [];
     
     acceptedApps.forEach(app => {
-        const jobId = app.jobId;
+        const jobId = app.job_id;  // Supabase uses job_id (UUID)
         if (oppsFiles[jobId]) {
             oppsFiles[jobId].forEach(file => {
                 files.push({
                     ...file,
-                    jobTitle: app.jobTitle,
+                    jobTitle: app.job_title,  // Supabase uses job_title
                     jobId: jobId
                 });
             });
@@ -371,11 +419,11 @@ function loadSubmissionForm(acceptedApps) {
     form.style.display = 'block';
     noAppsMsg.style.display = 'none';
     
-    // Populate job select
+    // Populate job select with Supabase applications (job_id, job_title)
     jobSelect.innerHTML = '<option value="">-- Choose an opportunity --</option>' + 
         acceptedApps.map(app => `
-            <option value="${app.jobId}" data-title="${app.jobTitle}">
-                ${app.jobTitle} - ${app.company}
+            <option value="${app.job_id}" data-title="${app.job_title}">
+                ${app.job_title}
             </option>
         `).join('');
     

@@ -2,10 +2,25 @@
 
 let currentView = 'all';
 let filteredOpportunities = [];
+let userApplications = []; // Cache user's applications from Supabase
 
 document.addEventListener('DOMContentLoaded', function () {
-    displayOpportunities();
-    updateOpportunitiesCount();
+    // Clean up old localStorage to prevent quota exceeded errors
+    try {
+        localStorage.removeItem('applications');
+        console.log('✓ Cleaned up old applications from localStorage');
+    } catch (e) {
+        console.warn('Could not clean localStorage:', e);
+    }
+
+    // Load user's applications from Supabase
+    loadUserApplications().then(() => {
+        // Wait a moment for AppData to be loaded from Supabase
+        setTimeout(() => {
+            displayOpportunities();
+            updateOpportunitiesCount();
+        }, 100);
+    });
 
     document.getElementById('search-opportunities')?.addEventListener('input', filterOpportunities);
     document.getElementById('filter-type')?.addEventListener('change', filterOpportunities);
@@ -36,10 +51,34 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // Apply form submission
-    document.getElementById('apply-form')?.addEventListener('submit', submitApplication);
+    const applyForm = document.getElementById('apply-form');
+    if (applyForm) {
+        applyForm.addEventListener('submit', submitApplication);
+        console.log('✓ Apply form listener attached');
+    } else {
+        console.warn('⚠ Apply form not found!');
+    }
 });
 
 // ─── DISPLAY ───
+async function loadUserApplications() {
+    try {
+        const userEmail = AppData.user.email;
+        const response = await fetch(`https://fsuhpjlyzojioezdjjld.supabase.co/rest/v1/applications?email=eq.${encodeURIComponent(userEmail)}&order=created_at.desc`, {
+            headers: {
+                'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzdWhwamx5em9qaW9lemRqamxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjIxNDksImV4cCI6MjA5Mjc5ODE0OX0.IkNVBJrpPKCuW9cKfuRNMWCa2mqjuerYWNUhuDdunlM',
+                'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzdWhwamx5em9qaW9lemRqamxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjIxNDksImV4cCI6MjA5Mjc5ODE0OX0.IkNVBJrpPKCuW9cKfuRNMWCa2mqjuerYWNUhuDdunlM'
+            }
+        });
+        
+        userApplications = response.ok ? await response.json() : [];
+        console.log('📝 Loaded user applications:', userApplications.length);
+    } catch (error) {
+        console.error('Error loading user applications:', error);
+        userApplications = [];
+    }
+}
+
 function displayOpportunities(opps = null) {
     const container = document.getElementById('opportunities-container');
     const opportunities = opps || AppData.opportunities;
@@ -56,8 +95,18 @@ function displayOpportunities(opps = null) {
 
     container.innerHTML = opportunities.map(opp => {
         const appliedKey = 'applied_' + opp.id;
-        const isApplied = AppData.appliedOpportunities.includes(opp.id) ||
-            localStorage.getItem(appliedKey) === 'true';
+        
+        // Check user's application from Supabase
+        const userApp = userApplications.find(app => app.job_title === opp.title);
+        const isApplied = userApp ? true : (AppData.appliedOpportunities.includes(opp.id) || localStorage.getItem(appliedKey) === 'true');
+        const appStatus = userApp?.status || 'pending';
+        
+        // Status display
+        const statusBadge = userApp ? `
+            <span class="application-status-badge ${appStatus}">
+                ${appStatus === 'accepted' ? '✓ Accepted' : appStatus === 'rejected' ? '✗ Rejected' : '⏳ Pending'}
+            </span>` : '';
+        
         const showMatch = opp.matchScore > 0 && AppData.skills.length > 0;
 
         const adminBadge = opp.isAdminJob ? `
@@ -81,6 +130,7 @@ function displayOpportunities(opps = null) {
             <div class="opportunity-header">
                 <h3>${opp.title}</h3>
                 <p class="opportunity-company">${opp.company}</p>
+                ${statusBadge}
             </div>
 
             <div class="opportunity-tags">
@@ -108,7 +158,7 @@ function displayOpportunities(opps = null) {
                     View Details
                 </button>
                 <button class="btn-apply" onclick="openApplyModal('${opp.id}')" ${isApplied ? 'disabled' : ''}>
-                    ${isApplied ? 'Applied ✓' : 'Apply Now'}
+                    ${isApplied ? (appStatus === 'accepted' ? '✓ Accepted' : appStatus === 'rejected' ? '✗ Rejected' : 'Applied ✓') : 'Apply Now'}
                 </button>
             </div>
         </div>`;
@@ -238,6 +288,7 @@ function closeApplyModal() {
 
 function submitApplication(e) {
     e.preventDefault();
+    console.log('📝 Submit application clicked');
 
     const name = document.getElementById('apply-name').value.trim();
     const email = document.getElementById('apply-email').value.trim();
@@ -245,31 +296,65 @@ function submitApplication(e) {
     const message = document.getElementById('apply-message').value.trim();
     const errEl = document.getElementById('apply-error');
 
+    console.log('Form values:', { name, email, skillsRaw, message, oppId: currentApplyOppId });
+
     if (!name || !email) {
-        errEl.textContent = 'Please fill in your name and email.';
+        const err = 'Please fill in your name and email.';
+        console.warn('❌ ' + err);
+        errEl.textContent = err;
+        errEl.style.display = 'block';
+        return;
+    }
+
+    if (!currentApplyOppId) {
+        const err = 'Error: No opportunity selected.';
+        console.error('❌ ' + err);
+        errEl.textContent = err;
         errEl.style.display = 'block';
         return;
     }
 
     const opp = AppData.opportunities.find(o => String(o.id) === String(currentApplyOppId));
+    console.log('Found opportunity:', opp);
+
+    if (!opp) {
+        const err = `Error: Could not find job (ID: ${currentApplyOppId}). Please try refreshing the page.`;
+        console.error('❌ ' + err);
+        errEl.textContent = err;
+        errEl.style.display = 'block';
+        return;
+    }
+
     const skills = skillsRaw.split(',').map(s => s.trim()).filter(Boolean);
+    console.log('Parsed skills:', skills);
 
-    // Save to admin dashboard applications
-    const applications = JSON.parse(localStorage.getItem('applications')) || [];
-    applications.push({
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-        jobId: opp?._adminId || currentApplyOppId,
-        jobTitle: opp?.title || 'Unknown',
-        name,
-        email,
-        skills,
-        message,
-        status: 'pending',
-        date: new Date().toISOString()
-    });
-    localStorage.setItem('applications', JSON.stringify(applications));
+    // Save to Supabase applications table (PRIMARY)
+    if (supabase && supabase.addApplication) {
+        supabase.addApplication({
+            job_id: opp._dbId,  // UUID from Supabase
+            job_title: opp.title,
+            name: name,
+            email: email,
+            skills: skills,
+            message: message,
+            status: 'pending'
+        }).then(result => {
+            console.log('✓ Application saved to Supabase:', result);
+            // Reload user applications to show the new status
+            loadUserApplications();
+        }).catch(err => {
+            console.error('❌ Error saving to Supabase:', err);
+            errEl.textContent = 'Error submitting application. Please try again.';
+            errEl.style.display = 'block';
+        });
+    } else {
+        console.error('❌ Supabase not available!');
+        errEl.textContent = 'Application service unavailable. Please check your connection.';
+        errEl.style.display = 'block';
+        return;
+    }
 
-    // Mark as applied on this site
+    // Mark as applied locally (lightweight, not storing full application)
     AppData.appliedOpportunities.push(currentApplyOppId);
     localStorage.setItem('applied_' + currentApplyOppId, 'true');
     Storage.save();
@@ -277,4 +362,5 @@ function submitApplication(e) {
     closeApplyModal();
     filterOpportunities();
     Utils.showNotification('✓ Application submitted! We\'ll be in touch soon.');
+    console.log('✓ Application process complete');
 }

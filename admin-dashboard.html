@@ -970,7 +970,7 @@
 <!-- APP -->
 <div id="app">
   <header>
-    <div class="header-logo">Dev<span>XP</span> // Admin</div>
+    <div class="header-logo">Dev<span>Bridge</span> // Admin</div>
     <div class="header-right">
       <span style="font-family:var(--mono);font-size:11px;color:var(--muted);" id="admin-name-display"></span>
       <button class="btn-logout" onclick="handleLogout()">Logout</button>
@@ -1155,7 +1155,7 @@
 <script>
 // ─── CREDENTIALS (change these!) ───
 const ADMIN_CREDENTIALS = [
-  { user: 'admin', pass: 'admin123', name: 'Admin' }
+  { user: 'admin', pass: 'admin123', name: 'Saint' }
 ];
 
 // ─── STATE ───
@@ -1173,17 +1173,29 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('login-screen').style.display !== 'none') handleLogin();
 });
 
-function handleLogin() {
+async function handleLogin() {
   const u = document.getElementById('login-user').value.trim();
   const p = document.getElementById('login-pass').value;
+  
+  console.log('🔑 Login attempt:', u);
+  
   const match = ADMIN_CREDENTIALS.find(c => c.user === u && c.pass === p);
   if (match) {
-    sessionStorage.setItem('adminName', match.name);
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    document.getElementById('admin-name-display').textContent = match.name;
-    renderAll();
+    try {
+      sessionStorage.setItem('adminName', match.name);
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      document.getElementById('admin-name-display').textContent = match.name;
+      console.log('✅ Login successful for:', match.name);
+      await renderAll();
+      startAdminPolling();
+    } catch (error) {
+      console.error('❌ Error during login:', error);
+      document.getElementById('login-error').style.display = 'block';
+      document.getElementById('login-error').textContent = '⚠ Error loading dashboard. Check console.';
+    }
   } else {
+    console.log('❌ Invalid credentials');
     document.getElementById('login-error').style.display = 'block';
     document.getElementById('login-pass').value = '';
   }
@@ -1205,10 +1217,31 @@ window.onload = () => {
     document.getElementById('app').style.display = 'block';
     document.getElementById('admin-name-display').textContent = name;
     renderAll();
+    // Start polling for updates from Supabase
+    startAdminPolling();
   }
   // Seed demo data if empty
   seedDemoData();
+  // Sync existing jobs to Supabase
+  syncJobsToSupabase();
 };
+
+// ─── POLLING FOR REAL-TIME UPDATES ───
+function startAdminPolling() {
+  if (window.adminPollingInterval) clearInterval(window.adminPollingInterval);
+  
+  window.adminPollingInterval = setInterval(async () => {
+    try {
+      await loadFromSupabase();
+      // Only update stats, not full render to reduce flicker
+      renderStats();
+    } catch (error) {
+      console.error('Polling error:', error);
+    }
+  }, 5000); // Poll every 5 seconds for stats only
+  
+  console.log('📡 Admin dashboard polling started (5s interval)');
+}
 
 // ─── DEMO DATA ───
 function seedDemoData() {
@@ -1236,17 +1269,41 @@ function toast(msg, type = 'success') {
 }
 
 function renderAll() {
-  renderStats();
-  renderJobs();
-  renderApps();
-  populateJobFilesSelect();
-  renderSubmissions();
+  loadFromSupabase().then(() => {
+    renderStats();
+    renderJobs();
+    renderApps();
+    populateJobFilesSelect();
+    renderSubmissions();
+  });
+}
+
+// ─── LOAD FROM SUPABASE ───
+let supabaseJobs = [];
+let supabaseApps = [];
+
+async function loadFromSupabase() {
+  try {
+    // Load jobs from Supabase
+    const jobs = await supabaseAdmin.getJobs();
+    supabaseJobs = jobs || [];
+    console.log(`✓ Loaded ${supabaseJobs.length} jobs from Supabase`);
+    
+    // Load applications from Supabase
+    const apps = await supabaseAdmin.request('GET', '/applications?order=created_at.desc');
+    supabaseApps = Array.isArray(apps) ? apps : [];
+    console.log(`✓ Loaded ${supabaseApps.length} applications from Supabase`);
+  } catch (e) {
+    console.warn('Error loading from Supabase:', e);
+    supabaseJobs = [];
+    supabaseApps = [];
+  }
 }
 
 // ─── STATS ───
 function renderStats() {
-  const jobs = getData('jobs');
-  const apps = getData('applications');
+  const jobs = supabaseJobs.length > 0 ? supabaseJobs : getData('jobs');
+  const apps = supabaseApps.length > 0 ? supabaseApps : getData('applications');
   const files = getData('opportunity_files', {});
   const submissions = getData('user_submissions', []);
   const pending = apps.filter(a => a.status === 'pending').length;
@@ -1266,7 +1323,7 @@ function renderStats() {
 }
 
 // ─── JOBS ───
-function addJob() {
+async function addJob() {
   const title = document.getElementById('job-title').value.trim();
   const type = document.getElementById('job-type').value;
   const desc = document.getElementById('job-desc').value.trim();
@@ -1278,12 +1335,34 @@ function addJob() {
   if (!title || !type || !desc) { toast('Fill in Title, Type, and Description', 'error'); return; }
 
   const skills = skillsRaw.split(',').map(s => s.trim()).filter(Boolean);
+  const jobId = uid();
+  const jobData = { id: jobId, title, type, desc, skills, difficulty, duration, slots, date: new Date().toISOString() };
+  
+  // Save to localStorage
   const jobs = getData('jobs');
-  jobs.unshift({ id: uid(), title, type, desc, skills, difficulty, duration, slots, date: new Date().toISOString() });
+  jobs.unshift(jobData);
   setData('jobs', jobs);
+  
+  // Post to Supabase
+  try {
+    await supabaseAdmin.addJob({
+      title: title,
+      type: type,
+      description: desc,
+      skills: skills,
+      difficulty: difficulty,
+      duration: duration,
+      slots: slots
+    });
+    console.log('✓ Job posted to Supabase');
+  } catch (e) {
+    console.error('Error posting to Supabase:', e);
+    toast('Warning: Job saved locally but Supabase sync failed. Check console.', 'error');
+  }
+  
   clearJobForm();
   renderAll();
-  toast('✓ Job posted successfully');
+  toast('✓ Job posted successfully to all users!');
 }
 
 function clearJobForm() {
@@ -1294,19 +1373,27 @@ function clearJobForm() {
 
 function deleteJob(id) {
   if (!confirm('Delete this job? All its applications will also be removed.')) return;
+  
+  // Delete from Supabase
+  supabaseAdmin.deleteJob(id).then(() => {
+    console.log('✓ Job deleted from Supabase');
+    renderAll();
+    toast('Job removed', 'error');
+  }).catch(e => {
+    console.error('Error deleting job:', e);
+    toast('Error deleting job', 'error');
+  });
+  
+  // Also remove from localStorage if it exists there
   let jobs = getData('jobs').filter(j => j.id !== id);
-  let apps = getData('applications').filter(a => a.jobId !== id);
   setData('jobs', jobs);
-  setData('applications', apps);
-  renderAll();
-  toast('Job removed', 'error');
 }
 
 // ─── FILE UPLOAD ─── 
 let selectedFilesForUpload = [];
 
 function populateJobFilesSelect() {
-  const jobs = getData('jobs');
+  const jobs = supabaseJobs.length > 0 ? supabaseJobs : getData('jobs');
   const select = document.getElementById('file-job-select');
   select.innerHTML = '<option value="">-- Choose a job --</option>';
   jobs.forEach(job => {
@@ -1374,6 +1461,7 @@ function uploadFiles() {
         document.getElementById('file-input').value = '';
         document.getElementById('file-list-preview').innerHTML = '';
         renderAll();
+        renderJobFiles();
         toast(`✓ ${uploaded} file(s) uploaded`);
       }
     };
@@ -1532,26 +1620,28 @@ function deleteSubmission(submissionId) {
 }
 
 function renderJobs() {
-  const jobs = getData('jobs');
-  const apps = getData('applications');
+  const jobs = supabaseJobs.length > 0 ? supabaseJobs : getData('jobs');
+  const apps = supabaseApps.length > 0 ? supabaseApps : getData('applications');
   const list = document.getElementById('jobs-list');
   if (!jobs.length) {
     list.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No jobs posted yet. Add one above.</div></div>`;
     return;
   }
   list.innerHTML = jobs.map(j => {
-    const jobApps = apps.filter(a => a.jobId === j.id);
-    const diffClass = j.difficulty === 'Easy' ? 'easy' : j.difficulty === 'Hard' ? 'hard' : 'medium';
-    const skills = j.skills.map(s => `<span class="skill-chip">${s}</span>`).join('');
+    const jobId = j.id;
+    const jobApps = apps.filter(a => a.job_id === jobId);
+    const difficulty = j.difficulty || 'Medium';
+    const diffClass = difficulty === 'Easy' ? 'easy' : difficulty === 'Hard' ? 'hard' : 'medium';
+    const skills = (j.skills || []).map(s => `<span class="skill-chip">${s}</span>`).join('');
     return `
     <div class="job-card">
       <div class="job-info">
         <div class="job-title-row">
           <div class="job-title">${j.title}</div>
           <span class="badge badge-type">${j.type}</span>
-          <span class="badge badge-diff-${diffClass}">${j.difficulty}</span>
+          <span class="badge badge-diff-${diffClass}">${difficulty}</span>
         </div>
-        <div class="job-desc">${j.desc}</div>
+        <div class="job-desc">${j.description}</div>
         <div class="job-skills">${skills}</div>
         <div class="job-meta">
           ${j.duration ? `<span>⏱ ${j.duration}</span>` : ''}
@@ -1560,8 +1650,8 @@ function renderJobs() {
         </div>
       </div>
       <div class="job-actions">
-        <button class="btn-view-apps" onclick="openJobApps('${j.id}')">View Apps (${jobApps.length})</button>
-        <button class="btn-delete" onclick="deleteJob('${j.id}')">Delete</button>
+        <button class="btn-view-apps" onclick="openJobApps('${jobId}')">View Apps (${jobApps.length})</button>
+        <button class="btn-delete" onclick="deleteJob('${jobId}')">Delete</button>
       </div>
     </div>`;
   }).join('');
@@ -1576,20 +1666,23 @@ function filterApps(status, btn) {
 }
 
 function updateAppStatus(id, status) {
-  let apps = getData('applications');
-  const app = apps.find(a => a.id === id);
-  if (!app) return;
-  app.status = status;
-  setData('applications', apps);
-  renderAll();
-  const msg = status === 'accepted' ? `✓ ${app.name} accepted!` : `✗ ${app.name} rejected`;
-  toast(msg, status === 'accepted' ? 'success' : 'error');
-  // Here you'd trigger EmailJS to notify the applicant
-  // emailjs.send('SERVICE_ID', 'TEMPLATE_ID', { to_email: app.email, name: app.name, status })
+  // Update in Supabase
+  supabaseAdmin.request('PATCH', `/applications?id=eq.${id}`, { status })
+    .then(result => {
+      console.log('✓ Application status updated in Supabase');
+      renderAll();
+      const app = supabaseApps.find(a => a.id === id);
+      const msg = status === 'accepted' ? `✓ ${app?.name} accepted!` : `✗ ${app?.name} rejected`;
+      toast(msg, status === 'accepted' ? 'success' : 'error');
+    })
+    .catch(err => {
+      console.error('Error updating status:', err);
+      toast('Error updating application status', 'error');
+    });
 }
 
 function renderApps(appsData, container) {
-  const all = appsData || getData('applications');
+  const all = appsData || (supabaseApps.length > 0 ? supabaseApps : getData('applications'));
   const filtered = currentFilter === 'all' ? all : all.filter(a => a.status === currentFilter);
   const el = container || document.getElementById('apps-list');
   if (!el) return;
@@ -1601,8 +1694,9 @@ function renderApps(appsData, container) {
 
   el.innerHTML = filtered.map(a => {
     const isPending = a.status === 'pending';
-    const skills = a.skills.map(s => `<span class="skill-chip">${s}</span>`).join('');
-    const date = new Date(a.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const skills = (a.skills || []).map(s => `<span class="skill-chip">${s}</span>`).join('');
+    const dateStr = a.created_at || a.date;
+    const date = new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     return `
     <div class="app-card">
       <div class="app-card-header">
@@ -1612,7 +1706,7 @@ function renderApps(appsData, container) {
         </div>
         <span class="app-status status-${a.status}">${a.status}</span>
       </div>
-      <div class="app-job-tag">${a.jobTitle}</div>
+      <div class="app-job-tag">${a.job_title || a.jobTitle}</div>
       ${a.message ? `<div class="app-message">"${a.message}"</div>` : ''}
       <div class="app-skills-row">${skills}</div>
       <div class="app-actions">
@@ -1626,10 +1720,15 @@ function renderApps(appsData, container) {
 
 // ─── MODAL ───
 function openJobApps(jobId) {
-  const jobs = getData('jobs');
-  const apps = getData('applications');
+  const jobs = supabaseJobs.length > 0 ? supabaseJobs : getData('jobs');
+  const apps = supabaseApps.length > 0 ? supabaseApps : getData('applications');
   const job = jobs.find(j => j.id === jobId);
-  const jobApps = apps.filter(a => a.jobId === jobId);
+  if (!job) {
+    console.error('Job not found:', jobId);
+    toast('Job not found', 'error');
+    return;
+  }
+  const jobApps = apps.filter(a => a.job_id === jobId || a.jobId === jobId);
   document.getElementById('modal-title').textContent = `Applications → ${job.title}`;
   const body = document.getElementById('modal-body');
   if (!jobApps.length) {
@@ -1650,6 +1749,70 @@ function switchTab(tab, btn) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById(`panel-${tab}`).classList.add('active');
+}
+
+// ─── SUPABASE SYNC ───
+// Initialize Supabase client
+const SUPABASE_URL = 'https://fsuhpjlyzojioezdjjld.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzdWhwamx5em9qaW9lemRqamxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjIxNDksImV4cCI6MjA5Mjc5ODE0OX0.IkNVBJrpPKCuW9cKfuRNMWCa2mqjuerYWNUhuDdunlM';
+
+class SupabaseAdmin {
+    constructor(url, key) {
+        this.url = url;
+        this.key = key;
+    }
+
+    async request(method, endpoint, data = null) {
+        const options = {
+            method,
+            headers: {
+                'apikey': this.key,
+                'Authorization': `Bearer ${this.key}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+            }
+        };
+
+        if (data) {
+            options.body = JSON.stringify(data);
+        }
+
+        const response = await fetch(`${this.url}/rest/v1${endpoint}`, options);
+        if (!response.ok) {
+            const error = await response.json();
+            console.error('Supabase error:', error);
+            throw new Error(error.message || 'Request failed');
+        }
+        return await response.json();
+    }
+
+    async getJobs() {
+        return this.request('GET', '/jobs?order=created_at.desc');
+    }
+
+    async addJob(data) {
+        return this.request('POST', '/jobs', data);
+    }
+
+    async deleteJob(id) {
+        return this.request('DELETE', `/jobs?id=eq.${id}`);
+    }
+}
+
+const supabaseAdmin = new SupabaseAdmin(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Sync jobs between localStorage and Supabase
+async function syncJobsToSupabase() {
+    try {
+        const jobs = getData('jobs');
+        console.log(`📡 Found ${jobs.length} local jobs. Skipping old localStorage jobs.`);
+        // Note: Old localStorage jobs have invalid UUID format
+        // Only NEW jobs posted through the form go to Supabase
+        // Supabase is now the source of truth for job listings
+        console.log('✓ Jobs sync complete (Supabase is source of truth)');
+    } catch (e) {
+        console.error('Error syncing jobs:', e);
+    }
 }
 </script>
 </body>
